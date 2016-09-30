@@ -13,6 +13,7 @@ class ViewController: UIViewController {
     
     @IBOutlet weak var history: UILabel!
     @IBOutlet weak var display: UILabel!
+    var brain = CalculatorBrain()
     var userIsInTheMiddleOfTypingANumber = false
     var operationSymbol = ""
     
@@ -22,7 +23,7 @@ class ViewController: UIViewController {
         {
             if(digit == ".")
             {
-                if(display.text!.containsString((".")))
+                if(display.text! == ".")
                 {
                     
                 } else {
@@ -36,62 +37,40 @@ class ViewController: UIViewController {
             userIsInTheMiddleOfTypingANumber = true
         }
     }
-    
+
     @IBAction func operate(sender: UIButton) {
-        let operation = sender.currentTitle!
-        if(userIsInTheMiddleOfTypingANumber)
-        {
-            enter();
+        if userIsInTheMiddleOfTypingANumber {
+            enter()
         }
         
-        switch  operation{
-            case "✖️":
-                operationSymbol = "✖️"
-                performOperation {$0 * $1}
-                break
-            case "➗":
-                operationSymbol = "➗"
-                performOperation {$0 / $1}
-                break
-            case "➕":
-                operationSymbol = "➕"
-                performOperation {$0 + $1}
-                break
-            case "➖":
-                operationSymbol = "➖"
-                performOperation {$0 - $1}
-                break
-            case "cos":
-                operationSymbol = "cos"
-                performOperationOneVariable {cos($0)}
-                break
-            case "sin":
-                operationSymbol = "sin"
-                performOperationOneVariable {sin($0)}
-                break
-            case "√":
-                operationSymbol = "√"
-                performOperationOneVariable {sqrt($0)}
-                break
-            case "C":
+        if let operation = sender.currentTitle {
+            if let result = brain.performOperation(operation) {
+                displayValue = result
+            }else{
                 displayValue = 0
                 history.text = ""
-                operandStack.removeAll()
-                break
-            case "⊓":
-                operationSymbol = "⊓"
-                displayValue = M_PI
-                break
-            default:
-                break
+            }
         }
     }
     
-    var operandStack = Array<Double>()
+    @IBAction func mRead(sender: AnyObject) {
+        if(brain.getMDisplay() == nil || brain.getMDisplay()!.isEmpty)
+        {
+            displayValue = brain.pushOperand("M")
+        }
+    }
+    
+    @IBAction func mSet(sender: AnyObject) {
+        brain.saveToVariableValues("M", value: displayValue!)
+    }
     @IBAction func enter() {
         userIsInTheMiddleOfTypingANumber = false
-        historyValue = "\(displayValue)"
-        operandStack.append(displayValue)
+        if let result = brain.pushOperand(displayValue!) {
+            displayValue = result
+        }else{
+            displayValue = nil
+        }
+        userIsInTheMiddleOfTypingANumber = false
     }
     
     func multiply(num1: Double, num2:Double) -> Double
@@ -99,45 +78,18 @@ class ViewController: UIViewController {
         return num1 * num2
     }
     
-    func performOperation(operation: (Double, Double) -> Double)
-    {
-        if(operandStack.count >= 2)
-        {
-            displayValue = operation(operandStack.removeLast(), operandStack.removeLast());
-            historyValue = "\(operationSymbol) = "
-            enter()
-        }
-    }
-    
-    func performOperationOneVariable(operation: Double -> Double)
-    {
-        if(operandStack.count >= 1)
-        {
-            displayValue = operation(operandStack.removeLast());
-            historyValue = "\(operationSymbol) = "
-            enter()
-        }
-    }
-    
-    var displayValue: Double {
+    var displayValue: Double? {
         get {
             return NSNumberFormatter().numberFromString(display.text!)!.doubleValue
         }
         
         set {
-            display.text = "\(newValue)"
+            display.text = "\(newValue!)"
+            if(!brain.description.isEmpty)
+            {
+                history.text = " \(brain.description) ="
+            }
             userIsInTheMiddleOfTypingANumber = false
         }
     }
-    
-    var historyValue: String {
-        get {
-            return history.text!
-        }
-        
-        set {
-            history.text = "\(history.text!) \(newValue)"
-        }
-    }
-    
 }
