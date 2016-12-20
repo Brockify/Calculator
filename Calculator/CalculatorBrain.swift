@@ -18,6 +18,7 @@ class CalculatorBrain
         case UnaryOperation(String, (Double) -> Double)
         case BinaryOperation(String, (Double, Double) -> Double)
         case ClearOperation(String)
+        case SetM(String)
         case PiOperation((String))
         var description: String{
             get{
@@ -32,6 +33,8 @@ class CalculatorBrain
                     return "⊓"
                 case .ClearOperation:
                     return "C"
+                case .SetM(let symbol):
+                    return "\(symbol)"
                 }
             }
         }
@@ -54,10 +57,17 @@ class CalculatorBrain
         learnOps(Op.UnaryOperation("√", sqrt))
         learnOps(Op.PiOperation("⊓"))
         learnOps(Op.ClearOperation("C"))
+        learnOps(Op.SetM(">M"))
     }
     
     private func evaluate(ops: [Op]) -> (result: Double?, remainingOps: [Op]) {
-        if !ops.isEmpty {
+        let s = "hi"
+        if let message = s as? String {
+            
+        }
+    
+    
+    if !ops.isEmpty {
             var remainingOps = ops
             let op = remainingOps.removeLast()
             switch(op) {
@@ -80,44 +90,83 @@ class CalculatorBrain
                 return (M_PI, remainingOps)
             case .ClearOperation(_):
                 clear()
+            case .SetM(let symbol):
+                if let variableValue = variableValues[symbol] {
+                    return (variableValue, remainingOps)
+                }
             }
         }
         return (nil, ops)
     }
     
-    private func history(current: String, ops: [Op]) -> (result: String?, remainingOps: [Op]) {
-        if !ops.isEmpty {
-            var remainingOps = ops
-            let op = remainingOps.removeLast()
-            switch(op) {
-            case .Operand(let operand):
-                if(displayFinal.isEmpty)
-                {
-                    displayFinal = "\(operand)"
-                }
-                return (displayFinal, remainingOps)
-            case .UnaryOperation(let symbol, _):
-                let operandEvaluation = evaluate(remainingOps)
-                if operandEvaluation.result != nil {
-                    displayFinal = "\(symbol)(\((displayFinal)))"
-                    return (displayFinal, remainingOps)
-                }
-            case .BinaryOperation(let symbol, _):
-                let op1Evaluation = evaluate(remainingOps)
-                if let operand1 = op1Evaluation.result {
-                    let op2Evaluation = evaluate(op1Evaluation.remainingOps)
-                    if op2Evaluation.result != nil {
-                        displayFinal = "\(symbol) \(operand1)"
-                        return (displayFinal, op2Evaluation.remainingOps)
+    //create a variable to call to format
+    var programGraph: AnyObject {
+        get {
+            return opStack.map { $0.description}
+        }
+        set {
+            if let opSymbols = newValue as? Array<String> {
+                var OpStack = [Op]()
+                for opSymbol in opSymbols {
+                    if let op = knownOps [opSymbol] {
+                        OpStack.append(op)
+                    } else if let operand = NSNumberFormatter().numberFromString(opSymbol)?.doubleValue {
+                        OpStack.append(.Operand(operand))
+                    } else {
+                    OpStack.append(.SetM(opSymbol))
                     }
                 }
-            case .PiOperation:
-                return (displayFinal, remainingOps)
-            case .ClearOperation(_):
-                clear()
+                opStack = OpStack
             }
         }
-        return (nil, ops)
+    }
+    
+    private func history(currentDescription: [String], ops: [Op]) -> (accumulatedDescription: [String], remainingOps: [Op]) {
+        var accumulatedDescription = currentDescription
+        if !ops.isEmpty {
+            var remainingOps = ops
+            let op = remainingOps.removeFirst()
+            switch op {
+            case .Operand(_):
+                accumulatedDescription.append(op.description)
+                return history(accumulatedDescription, ops: remainingOps)
+            case .UnaryOperation(let symbol, _):
+                if !accumulatedDescription.isEmpty {
+                    let unaryOperand = accumulatedDescription.removeLast()
+                    accumulatedDescription.append(symbol + "(\(unaryOperand))")
+                    let (newDescription, remainingOps) = history(accumulatedDescription, ops: remainingOps)
+                    return (newDescription, remainingOps)
+                }
+            case .PiOperation(_):
+                accumulatedDescription.append(op.description)
+                return history(accumulatedDescription, ops: remainingOps)
+            case .BinaryOperation(let symbol, _):
+                if !accumulatedDescription.isEmpty {
+                    let binaryOperandLast = accumulatedDescription.removeLast()
+                    if !accumulatedDescription.isEmpty {
+                        let binaryOperandFirst = accumulatedDescription.removeLast()
+                        if op.description == remainingOps.first?.description {
+                            accumulatedDescription.append("(\(binaryOperandFirst)" + symbol + "\(binaryOperandLast))")
+                        } else {
+                            accumulatedDescription.append("\(binaryOperandFirst)" + symbol + "\(binaryOperandLast)")
+                        }
+                        return history(accumulatedDescription, ops: remainingOps)
+                    } else {
+                        accumulatedDescription.append("?" + symbol + "\(binaryOperandLast)")
+                        return history(accumulatedDescription, ops: remainingOps)
+                    }
+                } else {
+                    accumulatedDescription.append("?" + symbol + "?")
+                    return history(accumulatedDescription, ops: remainingOps)
+                }
+            case .SetM(let Symbol):
+                accumulatedDescription.append(Symbol)
+                return history(accumulatedDescription, ops: remainingOps)
+            default:
+                return history(accumulatedDescription, ops: remainingOps)
+            }
+        }
+        return (accumulatedDescription, ops)
     }
 
     
@@ -138,19 +187,15 @@ class CalculatorBrain
         return evaluate()
     }
     
+    
     var description: String {
-         let (final, _) = history(String(), ops: opStack)
-        if(final == nil)
-        {
-            return ""
-        } else {
-         return final!
-        }
+        let (descriptionArray, _) = history([String](), ops: opStack)
+        return descriptionArray.joinWithSeparator(", ")
     }
     
-    func pushOperand(operand: String) -> Double? {
-           opStack.append(Op.Operand(variableValues[operand]!))
-            return evaluate()
+    func pushOperand(symbol: String) -> Double? {
+        opStack.append(Op.SetM(symbol))
+        return evaluate()
     }
     
     func performOperation(symbol: String) -> Double? {
@@ -158,10 +203,6 @@ class CalculatorBrain
             opStack.append(operation)
         }
         return evaluate()
-    }
-    
-    func getMDisplay() -> String? {
-        return "\(variableValues["M"])"
     }
  
     //function for clearing the console

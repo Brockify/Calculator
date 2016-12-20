@@ -8,8 +8,11 @@
 
 import UIKit
 
-class ViewController: UIViewController {
-
+class CalculatorViewControler: UIViewController {
+    
+    private struct Calculator {
+        static let SegueIdentifier = "Show Graph"
+    }
     
     @IBOutlet weak var history: UILabel!
     @IBOutlet weak var display: UILabel!
@@ -27,14 +30,35 @@ class ViewController: UIViewController {
                 {
                     
                 } else {
-                    display.text = display.text! + digit
+                    display.text! = display.text! + digit
                 }
             } else {
-                display.text = display.text! + digit
+                display.text! = display.text! + digit
             }
         } else {
-            display.text = digit
+            display.text! = digit
             userIsInTheMiddleOfTypingANumber = true
+        }
+    }
+    
+    override func prepareForSegue(segue: UIStoryboardSegue, sender: AnyObject?) {
+        
+        var destination = segue.destinationViewController
+        
+        if let navCon = destination as? UINavigationController {
+            destination = navCon.visibleViewController!
+        }
+        
+        if let gvc = destination as? GraphViewController {
+            if let identifier = segue.identifier {
+                
+                switch identifier {
+                case Calculator.SegueIdentifier:
+                    gvc.operandStack = brain.programGraph as? [String] ?? []
+                    gvc.programGraph = brain.programGraph
+                default: break
+                }
+            }
         }
     }
 
@@ -54,14 +78,17 @@ class ViewController: UIViewController {
     }
     
     @IBAction func mRead(sender: AnyObject) {
-        if(brain.getMDisplay() == nil || brain.getMDisplay()!.isEmpty)
-        {
-            displayValue = brain.pushOperand("M")
+        if userIsInTheMiddleOfTypingANumber {
+            enter()
         }
+        displayValue = brain.pushOperand("M")
     }
     
     @IBAction func mSet(sender: AnyObject) {
-        brain.saveToVariableValues("M", value: displayValue!)
+        userIsInTheMiddleOfTypingANumber = false
+        if displayValue != nil {
+            brain.variableValues["M"] = displayValue!
+        }
     }
     @IBAction func enter() {
         userIsInTheMiddleOfTypingANumber = false
@@ -84,11 +111,11 @@ class ViewController: UIViewController {
         }
         
         set {
-            display.text = "\(newValue!)"
-            if(!brain.description.isEmpty)
+            if(newValue != nil)
             {
-                history.text = " \(brain.description) ="
+                display.text = " \(newValue!)"
             }
+            history.text = "\(brain.description) ="
             userIsInTheMiddleOfTypingANumber = false
         }
     }
